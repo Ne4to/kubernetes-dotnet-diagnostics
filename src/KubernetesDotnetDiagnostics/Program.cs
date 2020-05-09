@@ -1,12 +1,17 @@
 ﻿using System;
-using System.Diagnostics;
+using System.Threading.Tasks;
+using KubernetesDotnetDiagnostics.Exceptions;
+using KubernetesDotnetDiagnostics.Models;
 using Microsoft.Extensions.Logging;
+
+// TODO investigate IKubernetes.NamespacedPodExecAsync(null,null,null,null,true,new ExecAsyncCallback(), )
+// TODO https://github.com/jlfwong/speedscope#usage
 
 namespace KubernetesDotnetDiagnostics
 {
     class Program
     {
-        static int Main(string[] args)
+        static async Task<int> Main(string[] args)
         {
             using var loggerFactory = LoggerFactory.Create(lb => lb.AddConsole());
             var logger = loggerFactory.CreateLogger<Program>();
@@ -14,16 +19,27 @@ namespace KubernetesDotnetDiagnostics
             try
             {
                 var argumentsParser = new ArgumentsParser(args);
-                argumentsParser.Parse();
+                var pod = argumentsParser.ParsePod();
+                var tool = argumentsParser.ParseTool();
 
-                // TODO upload single setup.sh file and execute
-                var result = Exec(argumentsParser, "command -v unzip || (apt-get update && apt-get install unzip)")
-                    && Exec(argumentsParser, "cd /diagnostics || (mkdir /diagnostics && cd /diagnostics)")
-                    && Exec(argumentsParser, "curl -L --output dotnet-counters.nupkg https://www.nuget.org/api/v2/package/dotnet-counters/3.1.120604")
-                    && Exec(argumentsParser, "unzip dotnet-counters.nupkg -d dotnet-counters")
-                    && Exec(argumentsParser, "dotnet /diagnostics/dotnet-counters/tools/netcoreapp2.1/any/dotnet-counters.dll ps");
+                switch (tool)
+                {
+                    case Tool.Trace:
+                        await RunTrace(pod);
+                        break;
 
-                logger.LogInformation($"Result = {result}");
+                    case Tool.Counters:
+                        await RunCounters(pod);
+                        break;
+
+                    default:
+                        throw new NotImplementedException();
+                }
+            }
+            catch (ParserException e)
+            {
+                logger.LogError(e.Message);
+                return 1;
             }
             catch (Exception e)
             {
@@ -34,33 +50,39 @@ namespace KubernetesDotnetDiagnostics
             return 0;
         }
 
-        private static bool Exec(ArgumentsParser argumentsParser, params string[] arguments)
+        private static async Task RunTrace(Pod pod)
         {
-            var processStartInfo = new ProcessStartInfo("kubectl")
+            await Kubectl.ExecEmbeddedShellScript(pod, "install-dotnet-trace.sh");
+
+            var filenamePrefix = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss");
+            var nettraceFullPath = $"/diagnostics/trace-{filenamePrefix}.nettrace";
+            var speedscopeFullPath = $"/diagnostics/trace-{filenamePrefix}.speedscope.json";
+
+            var traceArguments = new[]
             {
-                UseShellExecute = false,
-                RedirectStandardOutput = true
+                "dotnet", "/diagnostics/dotnet-trace/tools/netcoreapp2.1/any/dotnet-trace.dll", "collect",
+                "--format", "speedscope",
+                "--output", nettraceFullPath,
+                "--process-id", "1"
             };
 
-            processStartInfo.ArgumentList.Add("exec");
-            processStartInfo.ArgumentList.Add("-it");
-            processStartInfo.ArgumentList.Add(argumentsParser.PodName);
-            processStartInfo.ArgumentList.Add("--");
-            processStartInfo.ArgumentList.Add("bash");
-            processStartInfo.ArgumentList.Add("-c");
+            await Kubectl.Exec(pod, true, traceArguments);
+            await Kubectl.DownloadFile(pod, nettraceFullPath);
+            await Kubectl.DownloadFile(pod, speedscopeFullPath);
+        }
 
-            foreach (var arg in arguments)
+        private static async Task RunCounters(Pod pod)
+        {
+            await Kubectl.ExecEmbeddedShellScript(pod, "install-dotnet-counters.sh");
+
+            var traceArguments = new[]
             {
-                processStartInfo.ArgumentList.Add(arg);
-            }
+                "dotnet", "/diagnostics/dotnet-counters/tools/netcoreapp2.1/any/dotnet-counters.dll",
+                "monitor",
+                "--process-id", "1"
+            };
 
-            var process = Process.Start(processStartInfo);
-            var stdout = process.StandardOutput.ReadToEnd();
-            process.WaitForExit();
-            Console.WriteLine(stdout);
-            return process.ExitCode == 0;
+            await Kubectl.Exec(pod, true, traceArguments);
         }
     }
 }
-
-// TODO investigate IKubernetes.NamespacedPodExecAsync(null,null,null,null,true,new ExecAsyncCallback(), )

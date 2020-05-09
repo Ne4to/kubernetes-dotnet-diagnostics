@@ -1,4 +1,6 @@
 ﻿using System.Linq;
+using KubernetesDotnetDiagnostics.Exceptions;
+using KubernetesDotnetDiagnostics.Models;
 
 namespace KubernetesDotnetDiagnostics
 {
@@ -6,22 +8,40 @@ namespace KubernetesDotnetDiagnostics
     {
         private readonly string[] _args;
 
-        public string? Namespace { get; private set; }
-        public string? PodName { get; private set; }
-
         public ArgumentsParser(string[] args)
         {
             _args = args;
         }
 
-        // -n, --namespace=''
-        public void Parse()
+        public Pod ParsePod()
         {
-            var kubernetesNamespace = GetArgumentValue("-n", "--namespace");
+            var ns = GetArgumentValue("-n", "--namespace");
             var podName = GetPodName();
 
-            Namespace = kubernetesNamespace;
-            PodName = podName;
+            if (podName == null)
+            {
+                throw new ParserException("Please specify pod name");
+            }
+
+            return new Pod(podName, ns);
+        }
+
+        public Tool ParseTool()
+        {
+            foreach (var arg in _args)
+            {
+                if (arg == "--trace")
+                {
+                    return Tool.Trace;
+                }
+
+                if (arg == "--counters")
+                {
+                    return Tool.Counters;
+                }
+            }
+
+            throw new ParserException("Please specify tool using --trace of --counters");
         }
 
         private string? GetArgumentValue(string shortForm, string longForm)

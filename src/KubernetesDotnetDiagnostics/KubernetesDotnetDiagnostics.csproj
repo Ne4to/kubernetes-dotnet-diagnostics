@@ -17,4 +17,11 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="3.1.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Remove="shell-scripts\install-dotnet-counters.sh" />
+    <EmbeddedResource Include="shell-scripts\install-dotnet-counters.sh" />
+    <None Remove="shell-scripts\install-dotnet-trace.sh" />
+    <EmbeddedResource Include="shell-scripts\install-dotnet-trace.sh" />
+  </ItemGroup>
+
 </Project>
