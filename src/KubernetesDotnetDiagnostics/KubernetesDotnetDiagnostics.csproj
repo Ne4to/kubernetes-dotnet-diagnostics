@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <Nullable>enable</Nullable>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>kubectl-dotnetdiag</ToolCommandName>
+    <PackageOutputPath>./nupkg</PackageOutputPath>
+
+    <RepositoryUrl>https://github.com/ne4to/kubernetes-dotnet-diagnostics</RepositoryUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="3.1.3" />
+  </ItemGroup>
+
+</Project>
