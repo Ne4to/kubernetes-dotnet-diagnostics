@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using KubernetesDotnetDiagnostics.Exceptions;
 using KubernetesDotnetDiagnostics.Models;
 
 namespace KubernetesDotnetDiagnostics
@@ -22,6 +23,12 @@ namespace KubernetesDotnetDiagnostics
 
             allArguments.AddRange(arguments);
             return await Run(redirectOutput, allArguments);
+        }
+
+        public static async Task<bool> ExecEmbeddedSingleLineShellScript(Pod pod, string scriptName)
+        {
+            var script = EmbeddedResourceReader.GetSingleListShellScript(scriptName);
+            return await Exec(pod, false, "bash", "-c", script);
         }
 
         public static async Task ExecEmbeddedShellScript(Pod pod, string scriptName)
@@ -119,7 +126,12 @@ namespace KubernetesDotnetDiagnostics
             process.WaitForExit();
             var exitCode = process.ExitCode;
 
-            return exitCode == 0;
+            if (exitCode != 0)
+            {
+                throw new KubectlException();
+            }
+
+            return true;
         }
 
         private static async Task PipeProcessOutput(

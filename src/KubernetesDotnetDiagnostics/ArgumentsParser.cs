@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using KubernetesDotnetDiagnostics.Exceptions;
 using KubernetesDotnetDiagnostics.Models;
 
@@ -6,6 +7,7 @@ namespace KubernetesDotnetDiagnostics
 {
     internal class ArgumentsParser
     {
+        private const string CommandSeparator = "--";
         private readonly string[] _args;
 
         public ArgumentsParser(string[] args)
@@ -28,7 +30,7 @@ namespace KubernetesDotnetDiagnostics
 
         public Tool ParseTool()
         {
-            foreach (var arg in _args)
+            foreach (var arg in _args.TakeWhile(a => a != CommandSeparator))
             {
                 if (arg == "--trace")
                 {
@@ -49,12 +51,18 @@ namespace KubernetesDotnetDiagnostics
             for (var argIndex = 0; argIndex < _args.Length; argIndex++)
             {
                 var arg = _args[argIndex];
+                if (arg == CommandSeparator)
+                {
+                    break;
+                }
 
                 if ((arg == shortForm || arg == longForm) && argIndex != _args.Length - 1)
                 {
-                    return _args[argIndex + 1];
+                    var nextArg = _args[argIndex + 1];
+                    return nextArg == CommandSeparator
+                        ? null
+                        : nextArg;
                 }
-
             }
 
             return null;
@@ -62,7 +70,15 @@ namespace KubernetesDotnetDiagnostics
 
         private string? GetPodName()
         {
-            return _args.FirstOrDefault(arg => !arg.StartsWith('-'));
+            return _args.TakeWhile(a => a != CommandSeparator)
+               .FirstOrDefault(arg => !arg.StartsWith('-'));
+        }
+
+        public IReadOnlyList<string> GetCommandArguments()
+        {
+            return _args.SkipWhile(a => a != CommandSeparator)
+               .Skip(1)
+               .ToArray();
         }
     }
 }
