@@ -1,6 +1,11 @@
 # kubernetes-dotnet-diagnostics
 kubectl plugin to run https://github.com/dotnet/diagnostics tools
 
+##Installation
+```
+dotnet tool install --global KubernetesDotnetDiagnostics --version <version>
+```
+
 ## Using
 
 Run `dotnet-trace collect` [dotnet-trace instructions](https://github.com/dotnet/diagnostics/blob/master/documentation/dotnet-trace-instructions.md)

@@ -17,9 +17,16 @@ namespace KubernetesDotnetDiagnostics
             {
                 "exec",
                 "-it",
-                pod.Name,
-                "--"
+                pod.Name
             };
+
+            if (pod.Namespace != null)
+            {
+                allArguments.Add("-n");
+                allArguments.Add(pod.Namespace);
+            }
+
+            allArguments.Add("--");
 
             allArguments.AddRange(arguments);
             return await Run(redirectOutput, allArguments);
@@ -55,7 +62,9 @@ namespace KubernetesDotnetDiagnostics
             {
                 "cp",
                 localPath,
-                $"{pod.Name}:{containerPath}"
+                pod.Namespace == null
+                    ? $"{pod.Name}:{containerPath}"
+                    : $"{pod.Namespace}/{pod.Name}:{containerPath}"
             };
 
             return await Run(false, arguments);
@@ -77,7 +86,9 @@ namespace KubernetesDotnetDiagnostics
             var arguments = new List<string>()
             {
                 "cp",
-                $"{pod.Name}:{containerPath}",
+                pod.Namespace == null
+                    ? $"{pod.Name}:{containerPath}"
+                    : $"{pod.Namespace}/{pod.Name}:{containerPath}",
                 fileName
             };
 
@@ -86,7 +97,7 @@ namespace KubernetesDotnetDiagnostics
             return localPath;
         }
 
-        private static async Task<bool> Run(bool redirectOutput, IEnumerable<string> arguments)
+        private static async Task<bool> Run(bool redirectOutput, IReadOnlyCollection<string> arguments)
         {
             var processStartInfo = new ProcessStartInfo("kubectl")
             {
