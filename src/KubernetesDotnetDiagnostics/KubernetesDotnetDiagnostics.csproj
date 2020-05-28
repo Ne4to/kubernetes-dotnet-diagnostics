@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -11,6 +11,10 @@
     <PackageOutputPath>./nupkg</PackageOutputPath>
 
     <RepositoryUrl>https://github.com/ne4to/kubernetes-dotnet-diagnostics</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Authors>Alexey Sosnin</Authors>
+    <PackageTags>Kubernetes counters trace</PackageTags>
+    <Description>kubectl plugin to run https://github.com/dotnet/diagnostics tools</Description>
   </PropertyGroup>
 
   <ItemGroup>
