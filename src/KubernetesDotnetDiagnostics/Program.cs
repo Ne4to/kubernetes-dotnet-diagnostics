@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.CommandLine;
 using System.CommandLine.Invocation;
+using System.CommandLine.IO;
+using System.CommandLine.Parsing;
 using System.Threading.Tasks;
 using KubernetesDotnetDiagnostics.Exceptions;
 using KubernetesDotnetDiagnostics.Models;
@@ -14,22 +17,42 @@ namespace KubernetesDotnetDiagnostics
     {
         static async Task<int> Main(string[] args)
         {
-            var countersCommand = new Command("counters")
+            var countersCommand = new Command("--counters")
             {
                 CreatePodArgument(),
-                CreateNamespaceOption()
+                CreateNamespaceOption(),
+                CreateArgsOption("counters")
             };
 
             countersCommand.Handler = CommandHandler.Create(
-                async (string? n, string pod) =>
+                async (string? n, string pod, string[]? args) =>
                 {
-                    await RunCounters(new Pod(pod, n));
+                    await RunCounters(new Pod(pod, n), null, args);
                 });
 
-            var traceCommand = new Command("trace")
+            Command monitorCommand = new Command("--monitor")
+            {
+                Handler = CommandHandler.Create(async (string? n, string pod, string[]? args) =>
+                {
+                    await RunCounters(new Pod(pod, n), CountersMode.Monitor, args);
+                })
+            };
+            countersCommand.AddCommand(monitorCommand);
+
+            Command collectCommand = new Command("--collect")
+            {
+                Handler = CommandHandler.Create(async (string? n, string pod, string[]? args) =>
+                {
+                    await RunCounters(new Pod(pod, n), CountersMode.Collect, args);
+                })
+            };
+            countersCommand.AddCommand(collectCommand);
+
+            var traceCommand = new Command("--trace")
             {
                 CreatePodArgument(),
-                CreateNamespaceOption()
+                CreateNamespaceOption(),
+                CreateArgsOption("counters")
             };
 
             traceCommand.Handler = CommandHandler.Create(
@@ -41,7 +64,7 @@ namespace KubernetesDotnetDiagnostics
             var parent = new RootCommand("parent")
             {
                 traceCommand,
-                countersCommand
+                countersCommand,                
             };
             parent.IsHidden = true;
 
@@ -53,17 +76,29 @@ namespace KubernetesDotnetDiagnostics
             return new Argument<string>("pod")
             {
                 Description = "Pod name",
-                Arity = new ArgumentArity(1, 1)
+                Arity = ArgumentArity.ExactlyOne
             };
         }
 
         private static Option CreateNamespaceOption()
         {
-            return new Option(new[]{ "-n", "--namespace"}, "The namespace scope")
+            return new Option(new[] { "-n", "--namespace" }, "The namespace scope")
             {
                 Argument = new Argument<string>()
                 {
-                    Arity = new ArgumentArity(0, 1)
+                    Arity = ArgumentArity.ZeroOrOne
+                }
+            };
+        }
+
+        private static Option<string> CreateArgsOption(string commandName)
+        {
+            return new Option<string>("--args")
+            {
+                Description = $"dotnet-{commandName} arguments",
+                Argument = new Argument<string>()
+                {
+                    Arity = ArgumentArity.OneOrMore
                 }
             };
         }
@@ -87,7 +122,7 @@ namespace KubernetesDotnetDiagnostics
                     "--profile", "gc-collect"
                 };
 
-                await Kubectl.Exec(pod, true, traceArguments);
+                await Kubectl.Exec2(pod, true, traceArguments);
                 await Kubectl.DownloadFile(pod, nettraceFullPath);
                 await Kubectl.DownloadFile(pod, speedscopeFullPath);
             }
@@ -96,24 +131,47 @@ namespace KubernetesDotnetDiagnostics
             }
         }
 
-        private static async Task RunCounters(Pod pod)
+        private static async Task RunCounters(Pod pod, CountersMode? mode, string[]? extraArgs)
         {
             try
             {
                 await Kubectl.ExecEmbeddedSingleLineShellScript(pod, "install-dotnet-counters.sh");
 
-                var traceArguments = new[]
+                var countersArguments = new List<string>()
                 {
-                    "dotnet", "/diagnostics/dotnet-counters/tools/netcoreapp2.1/any/dotnet-counters.dll",
-                    "monitor",
-                    "--process-id", "1"
+                    "dotnet", "/diagnostics/dotnet-counters/tools/netcoreapp2.1/any/dotnet-counters.dll"
                 };
 
-                await Kubectl.Exec(pod, true, traceArguments);
+                if (mode != null)
+                {
+                    switch (mode.Value)
+                    {
+                        case CountersMode.Monitor:
+                            countersArguments.AddRange(new[] { "monitor", "--process-id", "1" });
+                            break;
+
+                        case CountersMode.Collect:
+                            countersArguments.AddRange(new[] { "collect", "--process-id", "1" });
+                            break;
+                    }
+                }
+
+                if (extraArgs != null)
+                {
+                    countersArguments.AddRange(extraArgs);
+                }
+
+                await Kubectl.Exec(pod, true, countersArguments);
             }
             catch (KubectlException)
             {
             }
         }
+    }
+
+    internal enum CountersMode
+    {
+        Monitor,
+        Collect
     }
 }

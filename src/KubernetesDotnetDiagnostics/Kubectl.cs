@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using KubernetesDotnetDiagnostics.Exceptions;
@@ -11,7 +12,12 @@ namespace KubernetesDotnetDiagnostics
 {
     internal static class Kubectl
     {
-        public static async Task<bool> Exec(Pod pod, bool redirectOutput, params string[] arguments)
+        public static async Task<bool> Exec2(Pod pod, bool redirectOutput, params string[] arguments)
+        {
+            return await Exec(pod, redirectOutput, arguments.ToArray());
+        }
+
+        public static async Task<bool> Exec(Pod pod, bool redirectOutput, IReadOnlyList<string> arguments)
         {
             var allArguments = new List<string>()
             {
@@ -35,7 +41,7 @@ namespace KubernetesDotnetDiagnostics
         public static async Task<bool> ExecEmbeddedSingleLineShellScript(Pod pod, string scriptName)
         {
             var script = EmbeddedResourceReader.GetSingleListShellScript(scriptName);
-            return await Exec(pod, false, "bash", "-c", script);
+            return await Exec2(pod, false, "bash", "-c", script);
         }
 
         public static async Task ExecEmbeddedShellScript(Pod pod, string scriptName)
@@ -44,8 +50,8 @@ namespace KubernetesDotnetDiagnostics
             try
             {
                 await UploadFile(tempScriptPath, pod, $"/diagnostics/{scriptName}");
-                await Exec(pod, false, "chmod", "+x", $"/diagnostics/{scriptName}");
-                await Exec(pod, false, "bash", $"/diagnostics/{scriptName}");
+                await Exec2(pod, false, "chmod", "+x", $"/diagnostics/{scriptName}");
+                await Exec2(pod, false, "bash", $"/diagnostics/{scriptName}");
             }
             finally
             {
@@ -116,8 +122,10 @@ namespace KubernetesDotnetDiagnostics
             argsLogBuilder.AppendJoin(' ', arguments);
             Console.WriteLine(argsLogBuilder);
 
-            using var process = new Process();
-            process.StartInfo = processStartInfo;
+            using var process = new Process
+            {
+                StartInfo = processStartInfo
+            };
             process.Start();
 
             if (redirectOutput)

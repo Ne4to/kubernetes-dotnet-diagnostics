@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "KubernetesDotnetDiagnostics": {
+      "commandName": "Project",
+      "commandLineArgs": "counters demo-global-admin-5fccd5f67d-qnqmc"
+    },
+    "help": {
+      "commandName": "Project",
+      "commandLineArgs": "[parse] counters demo-global-admin-5fccd5f67d-qnqmc --monitor"
+    }
+  }
+}
